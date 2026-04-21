@@ -44,3 +44,10 @@ print(f"After cleaning:              {len(text):,}")
 print(f"Unique characters now:       {len(set(text))}")
 print(f"\nAll chars: {''.join(sorted(set(text)))}")
 print(f"\n--- First 800 characters of CLEAN text ---\n{text[:800]}")
+
+# save clean data
+
+with open('gita_clean.txt', 'w', encoding='utf-8') as f:
+    f.write(text)
+
+print("\n saved to git_clean.txt")
