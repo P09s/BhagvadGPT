@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.nn import functional as f
+from torch.nn import functional as F
 
 torch.manual_seed(1337)
 
@@ -84,3 +84,66 @@ def estimate_loss():
             out[split] = losses.mean()
     model.train()
     return out
+
+# Bigram Language Model -----
+
+# WHY "BIGRAM"?
+# Bi = two. A bigram model only uses the CURRENT character to predict
+# the NEXT one. It has zero memory beyond the current character.
+# "bi" because prediction involves a pair: (current_char, next_char).
+
+class BigramLanguageModel(nn.Module):
+    # nn.Module is the base class for ALL PyTorch models.
+    # Every model you'll ever build inherits from it.
+
+    def __init__(self, vocab_size):
+        super().__init__()
+
+    self.token_embedding_table = nn.Embedding(vocab_size, vocab_size)
+
+    # what this does : token_id --> vector (this is how it works in the lookup table)
+
+    def forward(self, idx, targets=None):
+        logits = self.token_embedding_table(idx)
+        # Shape transformation
+        # Input:  (B, T)
+        # Output: (B, T, vocab_size)
+
+        # Example:
+
+        # (32, 8) → (32, 8, 84)
+
+        # 👉 Why?
+        # Each token becomes a vector of size vocab_size
+
+        loss = None
+        if targets is not None:
+            B, T, C = logits.shape
+            logits = logits.view(B*T, C)
+            targets = targets.view(B*T)
+            loss = F.cross_entropy(logits, targets) 
+
+        return logits, loss
+
+    def generate(self, idx, max_new_tokens):
+        for _ in range(max_new_tokens):
+            logits, _ = self(idx)
+            logits = logits[:, -1, :]
+
+            probs = F.softmax(logits, dim=1)
+
+            idx_next = torch.multinomial(probs, num_samples=1)
+
+            idx = torch.cat((idx, idx_next), dim=1)
+
+            # (B, T) → (B, T+1)
+
+            # Before:
+
+            # [ h, e, l ]
+
+            # After:
+
+            # [ h, e, l, l ]
+
+        return idx
