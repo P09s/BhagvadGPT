@@ -22,7 +22,7 @@ print(f"Vocabulary size: {vocab_size}")
 print(f"Characters: {''.join(chars)}")
 
 stoi = {ch: i for i, ch in enumerate(chars)}
-itos = {i: ch for ch, i in enumerate(chars)}
+itos = {i: ch for i, ch in enumerate(chars)}
 
 encode = lambda s: [stoi[c] for c in s]
 decode = lambda l: ''.join([itos[i] for i in l]) 
@@ -73,15 +73,15 @@ def get_batch(split):
 @torch.no_grad() # @torch.no_grad() tells PyTorch: "don't track gradients here". We're only MEASURING loss, not updating weights — so no need to compute gradients. This saves memory and speeds things up.
 def estimate_loss():
     out = {}
-    model_eval()
+    model.eval()
 
     for split in ['train', 'val']:
         losses = torch.zeros(eval_iters)
-        for k in eval_iters:
+        for k in range(eval_iters):
             X,Y = get_batch(split)
             _, loss = model(X,Y)
-            losses[k] = loss.items()
-            out[split] = losses.mean()
+            losses[k] = loss.item()
+        out[split] = losses.mean()
     model.train()
     return out
 
@@ -99,7 +99,7 @@ class BigramLanguageModel(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
 
-    self.token_embedding_table = nn.Embedding(vocab_size, vocab_size)
+        self.token_embedding_table = nn.Embedding(vocab_size, vocab_size)
 
     # what this does : token_id --> vector (this is how it works in the lookup table)
 
@@ -147,3 +147,43 @@ class BigramLanguageModel(nn.Module):
             # [ h, e, l, l ]
 
         return idx
+
+# ----- Training Loop ------
+
+model = BigramLanguageModel(vocab_size).to(device)
+optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+
+print("\nStarting training...\n")
+
+for iterations in range(max_iters):
+    if iterations % eval_interval == 0:
+        losses = estimate_loss()
+        print(f"Step {iterations:4d} | train loss: {losses['train']:.4f} | val loss: {losses['val']:.4f}")
+    
+    # a sample training batch to update weights
+    xb, yb = get_batch('train')
+    logits, loss = model(xb, yb) # Logits : Raw prediction scores before probabilities.
+                                 # [a: 2.1, b: -0.4, c: 5.8]
+                                 # Higher score = model thinks token more likely.
+    optimizer.zero_grad(set_to_none=True) # PyTorch ACCUMULATES gradients by default so we clean here.
+    loss.backward() # Backpropogation to update weights to optimize
+    optimizer.step() # Optimizer uses gradients to modify weights.
+
+# ENTIRE TRAINING LOOP:
+# 1. Get training examples
+# 2. Predict outputs
+# 3. Measure error
+# 4. Compute gradients
+# 5. Adjust weights
+# 6. Repeat thousands of times
+
+# ── Generate text after training ──────────────────────────────────────────
+
+context = torch.zeros((1,1), dtype=torch.long, device=device)
+generated = model.generate(context, max_new_tokens=500)[0].tolist()
+print(decode(generated))
+
+# ── Save the model ─────────────────────────────────────────────────────────
+
+torch.save(model.state_dict(), 'bigram_gita.pt')
+print("\n✓ Model saved to bigram_gita.pt")
